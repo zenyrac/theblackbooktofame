@@ -417,14 +417,11 @@
             const body = document.body;
 
             // ⭐ EDIT THIS ARRAY WITH YOUR IMAGE PATHS ⭐
-            const imagePaths = [
-                "P1.png",  // Replace with your image paths
-                "P2.png",  // e.g., "images/slide1.jpg"
-                "P3.png",
-                "P4.png",  // Replace with your image paths
-                "P5.png",  // e.g., "images/slide1.jpg"
-                "P6.png",// Images must be in the same folder as this HTML file
-            ];
+            const imagePaths = [];
+            // Generate image paths from P1.png to P54.png
+            for (let i = 1; i <= 6; i++) {
+                imagePaths.push(`P${i}.png`);
+            }
 
             // State
             let currentPageIndex = 0;
@@ -433,24 +430,58 @@
             const maxZoom = 3;
             const minZoom = 0.5;
             let isFullscreen = false;
+            let imagesLoaded = 0;
 
             // Initialize the viewer with your images
             function initViewer() {
-                renderPages();
-                updateNavigation();
-                updatePageIndicator();
-                statusEl.textContent = `Loaded ${imagePaths.length} images`;
-                
-                // Add event listeners only after unlock
-                prevNav.addEventListener('click', goToPreviousPage);
-                nextNav.addEventListener('click', goToNextPage);
-                zoomInBtn.addEventListener('click', zoomIn);
-                zoomOutBtn.addEventListener('click', zoomOut);
-                zoomResetBtn.addEventListener('click', resetZoom);
-                fullscreenBtn.addEventListener('click', toggleFullscreen);
-                exitFullscreenBtn.addEventListener('click', exitFullscreen);
-                
-                document.addEventListener('keydown', handleKeyDown);
+                preloadImages().then(() => {
+                    renderPages();
+                    updateNavigation();
+                    updatePageIndicator();
+                    statusEl.textContent = `Loaded ${imagesLoaded} of ${imagePaths.length} images`;
+                    
+                    // Add event listeners only after unlock
+                    prevNav.addEventListener('click', goToPreviousPage);
+                    nextNav.addEventListener('click', goToNextPage);
+                    zoomInBtn.addEventListener('click', zoomIn);
+                    zoomOutBtn.addEventListener('click', zoomOut);
+                    zoomResetBtn.addEventListener('click', resetZoom);
+                    fullscreenBtn.addEventListener('click', toggleFullscreen);
+                    exitFullscreenBtn.addEventListener('click', exitFullscreen);
+                    
+                    document.addEventListener('keydown', handleKeyDown);
+                }).catch(error => {
+                    console.error('Error loading images:', error);
+                    statusEl.textContent = `Error loading images (${imagesLoaded}/${imagePaths.length} loaded)`;
+                });
+            }
+
+            // Preload all images
+            function preloadImages() {
+                return new Promise((resolve, reject) => {
+                    let loaded = 0;
+                    let errored = false;
+                    
+                    imagePaths.forEach((imagePath, index) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            loaded++;
+                            imagesLoaded++;
+                            if (loaded === imagePaths.length) {
+                                resolve();
+                            }
+                        };
+                        img.onerror = () => {
+                            console.error(`Failed to load image: ${imagePath}`);
+                            loaded++;
+                            if (!errored) {
+                                errored = true;
+                                reject(new Error(`Failed to load image: ${imagePath}`));
+                            }
+                        };
+                        img.src = imagePath;
+                    });
+                });
             }
 
             // Render all images
@@ -461,21 +492,26 @@
                     const page = document.createElement('div');
                     page.className = 'page';
                     page.style.display = index === currentPageIndex ? 'flex' : 'none';
+                    page.dataset.loaded = 'false';
                     
                     const img = document.createElement('img');
                     img.src = imagePath;
                     img.style.transform = `scale(${zoomLevel})`;
+                    img.onload = () => {
+                        page.dataset.loaded = 'true';
+                    };
                     img.onerror = () => {
-                        img.src = "https://via.placeholder.com/800x600/ff0000/FFFFFF?text=Image+Not+Found";
+                        img.src = "https://via.placeholder.com/800x600/333333/FFFFFF?text=Image+Missing";
                         console.error(`Image not found: ${imagePath}`);
+                        page.dataset.loaded = 'error';
                     };
                     
                     page.appendChild(img);
                     pageContainer.appendChild(page);
                 });
             }
-
-            // Navigation functions
+            // Navigation functions, zoom functions, fullscreen functions, etc.
+                        // Navigation functions
             function goToPreviousPage() {
                 if (currentPageIndex > 0) {
                     currentPageIndex--;
@@ -582,11 +618,10 @@
                 if (e.key === 'f') toggleFullscreen();
                 if (e.key === 'Escape' && isFullscreen) exitFullscreen();
             }
-
             // Focus the password input when the page loads
             passwordInput.focus();
             
-            // For debugging - you can remove this in production
+            // For debugging
             console.log("Image paths to load:", imagePaths);
         });
     </script>
